@@ -36,9 +36,7 @@ app.add_page(receipts_list_page, route="/receipts", on_load=ReceiptState.on_moun
 app.add_page(
     view_receipt_page,
     route="/receipts/view/[ref_id]",
-    on_load=lambda: ReceiptState.load_view_receipt(
-        ReceiptState.router.page.params["ref_id"]
-    ),
+    on_load=ReceiptState.load_view_receipt,
 )
 app.add_page(reports_page, route="/reports")
 app.add_page(settings_page, route="/settings")

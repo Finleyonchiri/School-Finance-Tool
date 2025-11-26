@@ -84,46 +84,11 @@ class ReceiptState(rx.State):
         return result
 
     def _generate_data(self):
-        students = [
-            ("John Doe", "ADM001", "Grade 10"),
-            ("Jane Smith", "ADM002", "Grade 11"),
-            ("Michael Brown", "ADM003", "Grade 9"),
-            ("Emily Davis", "ADM004", "Grade 12"),
-            ("Chris Wilson", "ADM005", "Grade 10"),
-            ("Sarah Johnson", "ADM006", "Grade 8"),
-            ("David Miller", "ADM007", "Grade 11"),
-            ("Jessica Taylor", "ADM008", "Grade 9"),
-            ("Robert Key", "ADM009", "Grade 8"),
-            ("Linda White", "ADM010", "Grade 12"),
-        ]
-        payment_methods = ["Cash", "Bank Transfer", "Mobile Money", "Check"]
-        new_receipts = []
-        for _ in range(80):
-            student = random.choice(students)
-            amount = random.choice([500.0, 1000.0, 1500.0, 2000.0, 750.0, 3000.0])
-            days_ago = random.randint(0, 365)
-            date = (datetime.now() - timedelta(days=days_ago)).isoformat()
-            receipt = Receipt(
-                student_name=student[0],
-                admission_number=student[1],
-                class_grade=student[2],
-                payer_name=f"Parent of {student[0].split()[0]}",
-                amount=amount,
-                payment_method=random.choice(payment_methods),
-                reference_id=f"REF{random.randint(10000, 99999)}",
-                date=date,
-                notes="Term fee payment",
-                created_at=datetime.now().isoformat(),
-            )
-            new_receipts.append(receipt)
-        new_receipts.sort(key=lambda r: r.date, reverse=True)
-        self.all_receipts = new_receipts
+        pass
 
     @rx.event
     def load_receipts(self):
         """Fetch receipts from mock data with filters applied."""
-        if not self.all_receipts:
-            self._generate_data()
         filtered = self.all_receipts
         if self.search_query:
             sq = self.search_query.lower()
@@ -330,7 +295,5 @@ class ReceiptState(rx.State):
     @rx.event
     def load_view_receipt(self, ref_id: str):
         """Load specific receipt for view page based on URL param."""
-        if not self.all_receipts:
-            self._generate_data()
         if ref_id:
             self.view_receipt_id = ref_id

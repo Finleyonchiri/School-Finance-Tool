@@ -17,6 +17,13 @@ app = rx.App(
     ],
     head_components=[
         rx.el.link(rel="manifest", href="/manifest.json"),
+        rx.el.meta(name="theme-color", content="#4f46e5"),
+        rx.el.meta(name="application-name", content="TOYA"),
+        rx.el.meta(name="apple-mobile-web-app-capable", content="yes"),
+        rx.el.meta(name="apple-mobile-web-app-status-bar-style", content="default"),
+        rx.el.meta(name="apple-mobile-web-app-title", content="TOYA"),
+        rx.el.meta(name="format-detection", content="telephone=no"),
+        rx.el.meta(name="mobile-web-app-capable", content="yes"),
         rx.script("""
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {

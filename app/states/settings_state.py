@@ -2,6 +2,8 @@ import reflex as rx
 from typing import Any
 from sqlmodel import select
 from app.db import Settings
+import logging
+from app.db_init import initialize_db
 
 
 class SettingsState(rx.State):
@@ -25,14 +27,18 @@ class SettingsState(rx.State):
     @rx.event
     def on_mount(self):
         """Load settings from DB on mount."""
-        with rx.session() as session:
-            settings = session.exec(select(Settings)).all()
-            for s in settings:
-                if hasattr(self, s.key):
-                    if s.key in ["is_cashier_mode"]:
-                        setattr(self, s.key, s.value == "True")
-                    else:
-                        setattr(self, s.key, s.value)
+        try:
+            initialize_db()
+            with rx.session() as session:
+                settings = session.exec(select(Settings)).all()
+                for s in settings:
+                    if hasattr(self, s.key):
+                        if s.key in ["is_cashier_mode"]:
+                            setattr(self, s.key, s.value == "True")
+                        else:
+                            setattr(self, s.key, s.value)
+        except Exception as e:
+            logging.exception(f"Error loading settings: {e}")
 
     @rx.event
     def toggle_sidebar(self):
@@ -62,18 +68,22 @@ class SettingsState(rx.State):
             "currency_symbol": self.currency_symbol,
             "cashier_pin": self.cashier_pin,
         }
-        with rx.session() as session:
-            for key, value in settings_to_save.items():
-                setting = session.exec(
-                    select(Settings).where(Settings.key == key)
-                ).first()
-                if setting:
-                    setting.value = str(value)
-                    session.add(setting)
-                else:
-                    session.add(Settings(key=key, value=str(value)))
-            session.commit()
-        return rx.toast.success("Settings saved successfully!")
+        try:
+            with rx.session() as session:
+                for key, value in settings_to_save.items():
+                    setting = session.exec(
+                        select(Settings).where(Settings.key == key)
+                    ).first()
+                    if setting:
+                        setting.value = str(value)
+                        session.add(setting)
+                    else:
+                        session.add(Settings(key=key, value=str(value)))
+                session.commit()
+            return rx.toast.success("Settings saved successfully!")
+        except Exception as e:
+            logging.exception(f"Error saving settings: {e}")
+            return rx.toast.error("Failed to save settings.")
 
     @rx.event
     def verify_pin(self):

@@ -94,69 +94,83 @@ class ReceiptState(rx.State):
     @rx.event
     def load_stats(self):
         """Load global stats from DB."""
-        with rx.session() as session:
-            total = session.exec(select(func.sum(Receipt.amount))).one_or_none()
-            self.total_collected_val = float(total) if total else 0.0
-            self.receipts_count_val = (
-                session.exec(select(func.count(Receipt.id))).one() or 0
-            )
-            self.active_students_count_val = len(
-                session.exec(select(Receipt.admission_number).distinct()).all()
-            )
-            all_recs = session.exec(select(Receipt)).all()
-            self.all_receipts = all_recs
-            stats = {}
-            today = datetime.now()
-            for i in range(11, -1, -1):
-                d = today - timedelta(days=i * 30)
-                key = d.strftime("%b %Y")
-                stats[key] = 0.0
-            for r in all_recs:
-                try:
-                    d = datetime.fromisoformat(r.date)
+        try:
+            with rx.session() as session:
+                total = session.exec(select(func.sum(Receipt.amount))).one_or_none()
+                self.total_collected_val = float(total) if total else 0.0
+                self.receipts_count_val = (
+                    session.exec(select(func.count(Receipt.id))).one() or 0
+                )
+                self.active_students_count_val = len(
+                    session.exec(select(Receipt.admission_number).distinct()).all()
+                )
+                all_recs = session.exec(select(Receipt)).all()
+                self.all_receipts = all_recs
+                stats = {}
+                today = datetime.now()
+                for i in range(11, -1, -1):
+                    d = today - timedelta(days=i * 30)
                     key = d.strftime("%b %Y")
-                    if key in stats:
-                        stats[key] += r.amount
-                except Exception as e:
-                    logging.exception(f"Error parsing receipt date: {e}")
-                    continue
-            self.monthly_stats_data = [
-                {"month": m, "amount": amt} for m, amt in stats.items()
-            ]
-            c_stats = {}
-            for r in all_recs:
-                if r.class_grade in c_stats:
-                    c_stats[r.class_grade] += r.amount
-                else:
-                    c_stats[r.class_grade] = r.amount
-            c_result = [{"name": k, "amount": v} for k, v in c_stats.items()]
-            c_result.sort(key=lambda x: x["name"])
-            self.class_stats_data = c_result
+                    stats[key] = 0.0
+                for r in all_recs:
+                    try:
+                        d = datetime.fromisoformat(r.date)
+                        key = d.strftime("%b %Y")
+                        if key in stats:
+                            stats[key] += r.amount
+                    except Exception as e:
+                        logging.exception(f"Error parsing receipt date: {e}")
+                        continue
+                self.monthly_stats_data = [
+                    {"month": m, "amount": amt} for m, amt in stats.items()
+                ]
+                c_stats = {}
+                for r in all_recs:
+                    if r.class_grade in c_stats:
+                        c_stats[r.class_grade] += r.amount
+                    else:
+                        c_stats[r.class_grade] = r.amount
+                c_result = [{"name": k, "amount": v} for k, v in c_stats.items()]
+                c_result.sort(key=lambda x: x["name"])
+                self.class_stats_data = c_result
+        except Exception as e:
+            logging.exception(f"Error loading stats: {e}")
+            self.total_collected_val = 0.0
+            self.receipts_count_val = 0
+            self.active_students_count_val = 0
+            self.all_receipts = []
+            self.monthly_stats_data = []
+            self.class_stats_data = []
 
     @rx.event
     def load_receipts(self):
         """Fetch receipts from database with filters applied."""
-        query = select(Receipt).order_by(desc(Receipt.date))
-        if self.search_query:
-            sq = f"%{self.search_query.lower()}%"
-            query = query.where(
-                or_(
-                    col(Receipt.student_name).contains(self.search_query),
-                    col(Receipt.admission_number).contains(self.search_query),
-                    col(Receipt.reference_id).contains(self.search_query),
+        try:
+            query = select(Receipt).order_by(desc(Receipt.date))
+            if self.search_query:
+                sq = f"%{self.search_query.lower()}%"
+                query = query.where(
+                    or_(
+                        col(Receipt.student_name).contains(self.search_query),
+                        col(Receipt.admission_number).contains(self.search_query),
+                        col(Receipt.reference_id).contains(self.search_query),
+                    )
                 )
-            )
-        if self.filter_class:
-            query = query.where(Receipt.class_grade == self.filter_class)
-        if self.filter_date_start:
-            query = query.where(Receipt.date >= self.filter_date_start)
-        if self.filter_date_end:
-            query = query.where(Receipt.date <= self.filter_date_end)
-        with rx.session() as session:
-            self.total_count = len(session.exec(query).all())
-            start = (self.page - 1) * self.page_size
-            query = query.offset(start).limit(self.page_size)
-            self.receipts = session.exec(query).all()
+            if self.filter_class:
+                query = query.where(Receipt.class_grade == self.filter_class)
+            if self.filter_date_start:
+                query = query.where(Receipt.date >= self.filter_date_start)
+            if self.filter_date_end:
+                query = query.where(Receipt.date <= self.filter_date_end)
+            with rx.session() as session:
+                self.total_count = len(session.exec(query).all())
+                start = (self.page - 1) * self.page_size
+                query = query.offset(start).limit(self.page_size)
+                self.receipts = session.exec(query).all()
+        except Exception as e:
+            logging.exception(f"Error loading receipts: {e}")
+            self.receipts = []
+            self.total_count = 0
 
     @rx.event
     def set_search_query(self, query: str):
@@ -183,9 +197,15 @@ class ReceiptState(rx.State):
 
     @rx.event
     def on_mount(self):
-        self._seed_database()
-        self.load_stats()
-        self.load_receipts()
+        from app.db_init import initialize_db
+
+        try:
+            initialize_db()
+            self._seed_database()
+            self.load_stats()
+            self.load_receipts()
+        except Exception as e:
+            logging.exception(f"Error in ReceiptState on_mount: {e}")
 
     new_student_name: str = ""
     new_admission_number: str = ""
@@ -291,32 +311,36 @@ class ReceiptState(rx.State):
             return rx.toast.error("Invalid amount format.")
         if not self.new_reference_id:
             self.generate_reference()
-        with rx.session() as session:
-            existing = session.exec(
-                select(Receipt).where(Receipt.reference_id == self.new_reference_id)
-            ).first()
-            if existing:
-                return rx.toast.error(
-                    "Reference ID already exists. Please generate a new one."
+        try:
+            with rx.session() as session:
+                existing = session.exec(
+                    select(Receipt).where(Receipt.reference_id == self.new_reference_id)
+                ).first()
+                if existing:
+                    return rx.toast.error(
+                        "Reference ID already exists. Please generate a new one."
+                    )
+                new_receipt = Receipt(
+                    student_name=self.new_student_name,
+                    admission_number=self.new_admission_number,
+                    class_grade=self.new_class_grade,
+                    payer_name=self.new_payer_name,
+                    amount=amount_float,
+                    payment_method=self.new_payment_method,
+                    reference_id=self.new_reference_id,
+                    date=self.new_date,
+                    notes=self.new_notes,
+                    created_at=datetime.now().isoformat(),
                 )
-            new_receipt = Receipt(
-                student_name=self.new_student_name,
-                admission_number=self.new_admission_number,
-                class_grade=self.new_class_grade,
-                payer_name=self.new_payer_name,
-                amount=amount_float,
-                payment_method=self.new_payment_method,
-                reference_id=self.new_reference_id,
-                date=self.new_date,
-                notes=self.new_notes,
-                created_at=datetime.now().isoformat(),
-            )
-            session.add(new_receipt)
-            session.commit()
-        self.load_receipts()
-        self.load_stats()
-        self.clear_form()
-        return rx.toast.success("Receipt saved successfully!")
+                session.add(new_receipt)
+                session.commit()
+            self.load_receipts()
+            self.load_stats()
+            self.clear_form()
+            return rx.toast.success("Receipt saved successfully!")
+        except Exception as e:
+            logging.exception(f"Error saving receipt: {e}")
+            return rx.toast.error("Database error occurred while saving receipt.")
 
     @rx.event
     def clear_form(self):
@@ -343,20 +367,24 @@ class ReceiptState(rx.State):
     @rx.event
     def delete_receipt(self):
         if self.receipt_to_delete_id:
-            with rx.session() as session:
-                receipt = session.exec(
-                    select(Receipt).where(
-                        Receipt.reference_id == self.receipt_to_delete_id
-                    )
-                ).first()
-                if receipt:
-                    session.delete(receipt)
-                    session.commit()
-            self.load_receipts()
-            self.load_stats()
-            self.is_delete_modal_open = False
-            self.receipt_to_delete_id = ""
-            return rx.toast.success("Receipt deleted.")
+            try:
+                with rx.session() as session:
+                    receipt = session.exec(
+                        select(Receipt).where(
+                            Receipt.reference_id == self.receipt_to_delete_id
+                        )
+                    ).first()
+                    if receipt:
+                        session.delete(receipt)
+                        session.commit()
+                self.load_receipts()
+                self.load_stats()
+                self.is_delete_modal_open = False
+                self.receipt_to_delete_id = ""
+                return rx.toast.success("Receipt deleted.")
+            except Exception as e:
+                logging.exception(f"Error deleting receipt: {e}")
+                return rx.toast.error("Failed to delete receipt.")
 
     @rx.event
     def load_view_receipt(self, ref_id: str):

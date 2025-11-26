@@ -1,4 +1,5 @@
 qrcode
 pillow
-num2words
+sqlmodel
 reflex
+num2words

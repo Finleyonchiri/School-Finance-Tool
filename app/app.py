@@ -7,6 +7,7 @@ from app.pages.reports import reports_page
 from app.pages.settings import settings_page
 from app.pages.batch_print import batch_print_page
 from app.states.receipt_state import ReceiptState
+from app.states.settings_state import SettingsState
 
 app = rx.App(
     theme=rx.theme(
@@ -37,14 +38,20 @@ app = rx.App(
             """),
     ],
 )
-app.add_page(index, route="/", on_load=ReceiptState.on_mount)
-app.add_page(new_receipt_page, route="/receipts/new")
-app.add_page(receipts_list_page, route="/receipts", on_load=ReceiptState.on_mount)
+app.add_page(index, route="/", on_load=[ReceiptState.on_mount, SettingsState.on_mount])
+app.add_page(new_receipt_page, route="/receipts/new", on_load=SettingsState.on_mount)
+app.add_page(
+    receipts_list_page,
+    route="/receipts",
+    on_load=[ReceiptState.on_mount, SettingsState.on_mount],
+)
 app.add_page(
     view_receipt_page,
     route="/receipts/view/[ref_id]",
-    on_load=ReceiptState.load_view_receipt,
+    on_load=[ReceiptState.load_view_receipt, SettingsState.on_mount],
 )
-app.add_page(reports_page, route="/reports")
-app.add_page(settings_page, route="/settings")
-app.add_page(batch_print_page, route="/receipts/batch-print")
+app.add_page(reports_page, route="/reports", on_load=SettingsState.on_mount)
+app.add_page(settings_page, route="/settings", on_load=SettingsState.on_mount)
+app.add_page(
+    batch_print_page, route="/receipts/batch-print", on_load=SettingsState.on_mount
+)

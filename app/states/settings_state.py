@@ -1,5 +1,7 @@
 import reflex as rx
 from typing import Any
+from sqlmodel import select
+from app.db import Settings
 
 
 class SettingsState(rx.State):
@@ -21,6 +23,18 @@ class SettingsState(rx.State):
     show_pin_modal: bool = False
 
     @rx.event
+    def on_mount(self):
+        """Load settings from DB on mount."""
+        with rx.session() as session:
+            settings = session.exec(select(Settings)).all()
+            for s in settings:
+                if hasattr(self, s.key):
+                    if s.key in ["is_cashier_mode"]:
+                        setattr(self, s.key, s.value == "True")
+                    else:
+                        setattr(self, s.key, s.value)
+
+    @rx.event
     def toggle_sidebar(self):
         self.sidebar_open = not self.sidebar_open
 
@@ -38,6 +52,27 @@ class SettingsState(rx.State):
 
     @rx.event
     def save_settings(self):
+        """Persist settings to DB."""
+        settings_to_save = {
+            "school_name": self.school_name,
+            "school_address": self.school_address,
+            "school_phone": self.school_phone,
+            "school_email": self.school_email,
+            "school_motto": self.school_motto,
+            "currency_symbol": self.currency_symbol,
+            "cashier_pin": self.cashier_pin,
+        }
+        with rx.session() as session:
+            for key, value in settings_to_save.items():
+                setting = session.exec(
+                    select(Settings).where(Settings.key == key)
+                ).first()
+                if setting:
+                    setting.value = str(value)
+                    session.add(setting)
+                else:
+                    session.add(Settings(key=key, value=str(value)))
+            session.commit()
         return rx.toast.success("Settings saved successfully!")
 
     @rx.event

@@ -81,18 +81,12 @@ def index() -> rx.Component:
                     "blue",
                 ),
                 dashboard_stat_card(
-                    "Outstanding (Est.)",
-                    f"${ReceiptState.outstanding_amount:,.2f}",
-                    "clock",
-                    "orange",
-                ),
-                dashboard_stat_card(
                     "Active Students",
                     ReceiptState.active_students_count.to_string(),
                     "users",
                     "emerald",
                 ),
-                class_name="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8",
+                class_name="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8",
             ),
             rx.el.div(
                 chart_card("Monthly Income (12 Months)", monthly_income_chart()),
